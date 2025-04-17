@@ -3,6 +3,19 @@ import requests
 import pandas as pd
 import matplotlib.pyplot as plt
 import plotly.express as px
+import subprocess
+
+# Start the backend server
+def start_backend():
+    try:
+        # Check if the backend is already running
+        requests.get("http://localhost:8006")
+    except requests.exceptions.ConnectionError:
+        # Start the backend if not running
+        subprocess.Popen(["python", "scripts/project/backend.py"])
+
+# Ensure the backend is running
+start_backend()
 
 st.set_page_config(page_title="Fentanyl Precursors Lookup", layout="wide")
 # Global JS for copying text with a toast
