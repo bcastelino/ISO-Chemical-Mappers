@@ -5,17 +5,19 @@ import matplotlib.pyplot as plt
 import plotly.express as px
 import subprocess
 
-# Start the backend server
-def start_backend():
+def restart_backend():
     try:
-        # Check if the backend is already running
-        requests.get("http://localhost:8006")
-    except requests.exceptions.ConnectionError:
-        # Start the backend if not running
-        subprocess.Popen(["python", "scripts/project/backend.py"])
+        # Kill the existing backend process
+        subprocess.run("lsof -ti:8006 | xargs kill -9", shell=True, check=True)
+        print("Backend process killed successfully.")
 
+        # Restart the backend
+        subprocess.run("uvicorn backend:app --reload --port 8006", shell=True, check=True)
+        print("Backend restarted successfully.")
+    except subprocess.CalledProcessError as e:
+        print(f"An error occurred: {e}")
 # Ensure the backend is running
-start_backend()
+restart_backend()
 
 st.set_page_config(page_title="Fentanyl Precursors Lookup", layout="wide")
 # Global JS for copying text with a toast
