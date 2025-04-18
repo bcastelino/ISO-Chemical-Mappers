@@ -7,12 +7,8 @@ import subprocess
 
 def restart_backend():
     try:
-        # Kill the existing backend process
-        subprocess.run("lsof -ti:8006 | xargs kill -9", shell=True, check=True)
-        print("Backend process killed successfully.")
-
         # Restart the backend
-        subprocess.run("uvicorn backend:app --reload --port 8006", shell=True, check=True)
+        subprocess.run("python -m uvicorn backend:app --reload --port 8006", shell=True, check=True)
         print("Backend restarted successfully.")
     except subprocess.CalledProcessError as e:
         print(f"An error occurred: {e}")
