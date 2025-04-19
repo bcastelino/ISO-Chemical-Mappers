@@ -29,6 +29,8 @@ To make the Chemical ID Mapper more accessible for analysts, researchers, and po
 
 ### 🔍 Fentanyl Precursors Lookup Portal
 
+![Streamlit Interface - Chemical Lookup Tool](Data/Screenshots/Interface.png)
+
 The UI allows users to:
 - **Search** substances using a **CAS number**, **chemical name**, or **synonym**.
 - **View fuzzy and exact matches** dynamically, with scores, match type, and reference links.
@@ -39,6 +41,8 @@ The UI allows users to:
   - **Weight Tags** (CSA Schedules, Illicit classification, etc.)
 
 ### 📦 Data Model Integration
+
+![Data Model](Data/Screenshots/DataModel.png)
 
 The interface is powered by a backend API (FastAPI) that interacts with the curated database (see ER diagram for structure). Tables include:
 - `Substance_Reference`: Central chemical substance records
@@ -70,7 +74,7 @@ Each search query:
 ### 🖥️ Computer Resources Required
 - High-performance computing resources including:
   - **Large CPU** for processing massive datasets.
-  - **GPU** for acceleration of machine learning-based entity resolution.
+  - **GPU** for the acceleration of machine learning-based entity resolution.
   - **Cloud resources** (AWS, Google Cloud, etc.) for scalable computation.
   - **Local development environments** (laptops with sufficient processing power for testing and debugging).
 
