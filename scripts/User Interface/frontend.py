@@ -3,17 +3,6 @@ import requests
 import pandas as pd
 import matplotlib.pyplot as plt
 import plotly.express as px
-import subprocess
-
-def restart_backend():
-    try:
-        # Restart the backend
-        subprocess.run("uvicorn backend:app --reload --port 8006", shell=True, check=True)
-        print("Backend restarted successfully.")
-    except subprocess.CalledProcessError as e:
-        print(f"An error occurred: {e}")
-# Ensure the backend is running
-restart_backend()
 
 st.set_page_config(page_title="Fentanyl Precursors Lookup", layout="wide")
 # Global JS for copying text with a toast
