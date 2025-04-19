@@ -82,7 +82,10 @@ Each search query:
 ```
 / (Root)
 │── data/                # Raw and processed datasets
+│ └── screenshots/       # Images and UI screenshots
 │── scripts/             # Python scripts for processing and mapping
+│ └── ui/                # UI Front and Backend
+│ └── Web Scraping/      # Code for web scraping tasks
 │── docs/                # Project documentation
 │── README.md            # Project overview
 │── requirements.txt     # Dependencies
