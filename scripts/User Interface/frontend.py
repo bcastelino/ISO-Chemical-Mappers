@@ -218,7 +218,7 @@ if st.session_state.page == "home":
 
     if st.session_state.query:
         try:
-            response = requests.get("http://localhost:8006/match", params={"query": st.session_state.query})
+            response = requests.get("https://fentanyl-api.onrender.com/match", params={"query": st.session_state.query})
             results = response.json() if response.status_code == 200 else []
 
             if not results or results[0]["match_type"] == "no match":
@@ -301,7 +301,7 @@ elif st.session_state.page == "synonyms":
 
     if find_clicked and term:
         try:
-            resp = requests.get("http://localhost:8006/synonyms_lookup", params={"term": term})
+            resp = requests.get("https://fentanyl-api.onrender.com/synonyms_lookup", params={"term": term})
             if resp.status_code == 200:
                 results = resp.json()
                 if results:
@@ -336,7 +336,7 @@ elif st.session_state.page == "synonyms":
             st.error(f"Request failed: {e}")   
     
     try:
-        response = requests.get("http://localhost:8006/synonyms")
+        response = requests.get("https://fentanyl-api.onrender.com/synonyms")
         data = response.json()
     except Exception as e:
         st.error(f"Failed to fetch synonym insights: {e}")
