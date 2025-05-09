@@ -3,9 +3,12 @@ import requests
 import pandas as pd
 import matplotlib.pyplot as plt
 import plotly.express as px
+import urllib.parse
+import io
+import requests
+from io import BytesIO
 
-st.set_page_config(page_title="Fentanyl Precursors Lookup", layout="wide")
-# Global JS for copying text with a toast
+st.set_page_config(page_title="Illicit Synthetic Opioids Lookup", layout="wide")
 st.markdown("""
 <script>
 function copyCAS(cas) {
@@ -82,7 +85,7 @@ def top_navbar():
             <form class="top-nav">
                 <button name="nav" value="home">Home</button>
                 <button name="nav" value="synonyms">Synonyms</button>
-                <button name="nav" value="sources">Sources</button>
+                <button name="nav" value="Registry Sources">Registry Sources</button>
                 <button name="nav" value="weight">Weight Tag</button>
             </form>
         </div>
@@ -94,9 +97,25 @@ def top_navbar():
 
 def add_delete_button_centered():
     # This will center on all screen sizes (including mobile)
-    col1, col2, col3 = st.columns([1, 2, 1])
+    col1, col2, col3 = st.columns([2, 2, 2])
     with col1:
-        st.markdown("&nbsp;", unsafe_allow_html=True)
+        st.markdown("""
+            <style>
+            .stButton > button {
+                background-color: #4B0082;
+                color: white;
+                font-weight: 600;
+                padding: 12px 20px;
+                font-size: 16px;
+                border-radius: 10px;
+                width: 100%;
+                min-width: 180px;
+                max-width: 220px;
+                margin: auto;
+                display: block;
+            }
+            </style>
+        """, unsafe_allow_html=True)
     with col3:
         st.markdown("&nbsp;", unsafe_allow_html=True)
 
@@ -119,8 +138,8 @@ def add_delete_button_centered():
             </style>
         """, unsafe_allow_html=True)
 
-        if st.button("Add / Delete", key="top_add_delete"):
-            st.session_state.page = "add_delete"
+        #if st.button("Add / Delete", key="top_add_delete"):
+           # st.session_state.page = "add_delete"
 
 
 top_navbar()
@@ -155,6 +174,26 @@ st.markdown("""
 
 add_delete_button_centered()
 
+   # Load Excel
+data_log = "KeyValueCollector.xlsx"
+
+# Centered columns for buttons
+col1, col2, col3 = st.columns([3,3,3])
+
+with col1:
+    if st.button("Data Log", key="btn_data_log"):
+        st.session_state.page = "data_log"
+
+with col2:
+    if st.button("Add / Delete", key="btn_add_delete"):
+        st.session_state.page = "add_delete"
+
+
+with col3:
+    if st.button("Process Log", key="view_registry"):
+        st.session_state.page = "process_log"
+        
+
 # Background
 bg_images = {
     "home": " https://media-hosting.imagekit.io/f50525be2f7b4834/UI%20Background.jpg?Expires=1838670630&Key-Pair-Id=K2ZIVPTIP2VGHC&Signature=qNKkYL54t8ru~ywvPDxUVuxLL1nb8scKbaH29DXBNEMvHyYnXoEJG6wgY7Efpuv01hvFR4lZuOYP41hB2QujPF4HhDS~qMsi2SgseJKuyuCeOK5zHi2sirpUtm8p1k~0twoTFwsk8o5K9VKQlPtNc2Z0w6Cf3QRDDgX1uChryJ0M5u9crhfGG-UhP052MhGq7ugL28GL1FMlt3wEsECeI6tRjfZ~AGkIEv69ygUSxcTF0GOwNOPzSduN0q9tmajCipzoFdDu2DySa33xVmqYJnwctp39v90riBOPVj848RddaHIUvR~yhH91RpraY0AapFEB5dP~EvKh7hLQsc5Opg__"
@@ -172,7 +211,7 @@ st.markdown(f"""
 """, unsafe_allow_html=True)
 # ------ Home --------
 if st.session_state.page == "home":
-    st.markdown("<h1 style='text-align: center; color: black;'>Fentanyl Precursors Lookup</h1>", unsafe_allow_html=True)
+    st.markdown("<h1 style='text-align: center; color: #192a45;'>Illicit Synthetic Opioids Lookup</h1>", unsafe_allow_html=True)
 
     
 # Empty columns for spacing: [left, center, right]
@@ -182,15 +221,22 @@ if st.session_state.page == "home":
         with st.form("search_form", clear_on_submit=False):
             query = st.text_input(
                 "",
-                value=st.session_state.query,
+                value=st.session_state.get("query", ""),
                 placeholder="Enter CAS number, substance name or synonym",
                 label_visibility="collapsed"
             )
-            submitted = st.form_submit_button(" Search")
-
-            if submitted:
+            search_button = st.form_submit_button("Search")
+            if search_button:
                 st.session_state.query = query
                 st.session_state.selected_card_index = None
+                st.rerun()
+            
+        
+            #submitted = st.form_submit_button(" Search")
+
+            #if submitted:
+               # st.session_state.query = query
+               # st.session_state.selected_card_index = None
     st.markdown("""
     <style>
     button[kind="primary"] {
@@ -205,76 +251,204 @@ if st.session_state.page == "home":
     </style>
     """, unsafe_allow_html=True)
 
-    if st.session_state.query:
-        try:
-            response = requests.get("https://fentanyl-api.onrender.com/match", params={"query": st.session_state.query})
-            results = response.json() if response.status_code == 200 else []
+    #if st.session_state.query:
+if st.session_state.query:
+    try:
+        response = requests.get("http://localhost:8006/match", params={"query": st.session_state.query})
+        results = response.json() if response.status_code == 200 else []
 
-            if not results or results[0]["match_type"] == "no match":
-                st.warning("No match found.")
-            else:
-                multiple = len(results) > 1
+        #st.session_state.query = query
+        #st.session_state.selected_card_index = None
 
-            # ✅ Show confirmation message at the top
-                if multiple and st.session_state.selected_card_index is not None:
-                    selected = results[st.session_state.selected_card_index]
-                    st.markdown(f"""
-                        <div style="
-                            background-color:rgba(255, 255, 255, 0.7);
-                            border-left: 5px solid #28a745;
-                            padding: 15px 20px;
-                            margin: 15px 0;
-                            border-radius: 8px;
-                            font-size: 16px;
-                            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
-                        ">
-                            You selected: <b>{selected['substance_name']} ({selected['substance_id']})</b>
-                        </div>
-                    """, unsafe_allow_html=True)
-                if multiple:
-                    st.markdown("""
-                        <div style='margin: 10px 0 20px; padding: 10px 15px;
-                        background-color: #ffffcc; color: #333; border-radius: 10px;
-                        font-size: 15px; text-align: center; font-weight: 600;'>
-                            Multiple results found. Please click on one to select.
-                        </div>
-                    """, unsafe_allow_html=True)
+        if not results or results[0]["match_type"] == "no match":
+            st.warning("No match found.")
+        else:
+            multiple = len(results) > 1
 
-                for idx, r in enumerate(results):
-                    is_selected = st.session_state.selected_card_index == idx
-                    bg_color = "#E6FFE6" if is_selected else "#fcf9e8"
+            if multiple and st.session_state.selected_card_index is not None:
+                selected = results[st.session_state.selected_card_index]
+                st.markdown(f"""
+                    <div style="background-color:rgba(255, 255, 255, 0.7);
+                                border-left: 5px solid #28a745;
+                                padding: 15px 20px;
+                                margin: 15px 0;
+                                border-radius: 8px;
+                                font-size: 16px;
+                                box-shadow: 0 2px 8px rgba(0,0,0,0.1);">
+                        You selected: <b>{selected['substance_name']} ({selected['substance_id']})</b>
+                    </div>
+                """, unsafe_allow_html=True)
 
-                    with st.container():
-                        col = st.columns([1])[0]
-                        with col:
-                            if multiple:
-                                if st.button(
-                                    label=f"Select this result",
-                                    key=f"select_btn_{idx}"
-                                ):
-                                    st.session_state.selected_card_index = idx
-                                    st.rerun()
-                            
+            if multiple:
+                st.markdown("""
+                    <div style='margin: 10px 0 20px; padding: 10px 15px;
+                    background-color: #ffffcc; color: #333; border-radius: 10px;
+                    font-size: 15px; text-align: center; font-weight: 600;'>
+                        Multiple results found. Please click on one to select.
+                    </div>
+                """, unsafe_allow_html=True)
+
+            for idx, r in enumerate(results):
+                is_selected = st.session_state.selected_card_index == idx
+                bg_color = "#E6FFE6" if is_selected else "#fcf9e8"
+
+                substance_name = r.get('substance_name', '')
+                encoded_name = urllib.parse.quote(substance_name)
+                top_synonyms_html, full_synonyms_html = "", ""
+
+                # Fetch synonyms
+                synonyms_response = requests.get("http://localhost:8006/synonyms_lookup", params={"term": substance_name})
+                if synonyms_response.status_code == 200:
+                    synonyms_data = synonyms_response.json()
+                    synonyms_list = synonyms_data[0].get("Substance_Sourcing_Local_Name", []) if synonyms_data else []
+                    top_synonyms = synonyms_list[:5]
+                    top_synonyms_html = ", ".join(top_synonyms)
+                    full_synonyms_html = "<br>".join([f"{i+1}. {syn}" for i, syn in enumerate(synonyms_list)])
+
+                with st.container():
+                    col = st.columns([1])[0]
+                    with col:
+                        if multiple:
+                            if st.button(f"Select this result", key=f"select_btn_{idx}"):
+                                st.session_state.selected_card_index = idx
+                                st.rerun()
+
+                        html_block=f"""
+                            <div style="background-color: {bg_color}; padding: 15px; margin-bottom: 10px;
+                                        border-left: 5px solid #4B0082; border-radius: 10px;">
+                                <h5> Substance Info </h5>
+                                <b>CAS Number:</b> {r['substance_id']}<br>
+                                <b>Substance Name:</b> {r['substance_name']}<br>
+                                <b>Description:</b> {r['description']}<br>
+                                <b>Matched Text:</b> {r['matched_text']}<br>
+                                <b>Match Type:</b> {r['match_type']}<br>
+                                <b>Score:</b> {r['score']}%<br>
+                                <br>
+                                <h5> Weight Info </h5>
+                                {"<b>Weight Tag:</b> " + r['weight_tag_title'] + "<br>" if r.get("weight_tag_title") else ""}
+                                <b>Substance Weight:</b> {r.get('weight', 'Not Available')}<br>
+                                 <br><h5> Synonym Info </h5>
+                                {"<b>Total Synonyms:</b> " + str(r['total_synonyms_matched']) + "<br>" if r.get("total_synonyms_matched") else ""}
+
+                        """
+
+                        if top_synonyms_html:
+                            html_block += f"<b>Synonyms:</b> {top_synonyms_html}<br>"
+
+                        # Function to get synonym-link pairs from the backend Excel data
+                        synonym_source = r.get("synonym_source", [])
+                        synonym_rows = ""
+                        cas_number = r.get("substance_id", "Unknown").strip()
+
+
+                        synonym_source_sorted = sorted(
+                            synonym_source,
+                            key=lambda item: "pubchem.ncbi.nlm.nih.gov" in str(item.get("source", "")).lower()
+                            )
+                        # Define your fallback/default link for non-PubChem entries
+                        fallback_link =  f"https://pubchem.ncbi.nlm.nih.gov/rest/pug/compound/name/{cas_number}/synonyms/JSON"
+
+                        for i, item in enumerate(synonym_source_sorted):
+                            synonym = item.get("synonym", "Not Available")
+                            link = item.get("source", "Not Available")
+
+                            # If it's a PubChem link, show only it
+                            if "pubchem.ncbi.nlm.nih.gov" in str(link).lower():
+                                link_html = f"<a href='{link}' target='_blank'>{link}</a>"
+                            else:
+                                # Show both: original + fallback
+                                link_html = (
+                                    f"<a href='{link}' target='_blank'>{link}</a><br>"
+                                    "<br>"
+                                    f"<a href='{fallback_link}' target='_blank'>{fallback_link}</a>"
+                                ) if link != "Not Available" else "Not Available"
+
+                            synonym_rows += f"<tr><td>{i+1}</td><td>{synonym}</td><td>{link_html}</td></tr>"            
                         
-                            st.markdown(f"""
-                                <div style="background-color: {bg_color}; padding: 15px;
-                                            margin-bottom: 10px; border-left: 5px solid #4B0082;
-                                            border-radius: 10px;">
-                                    <b>CAS Number:</b> {r['substance_id']}<br>
-                                    <b>Substance Name:</b> {r['substance_name']}<br>
-                                    <b>Description:</b> {r['description']}<br>
-                                    <b>Matched Text:</b> {r['matched_text']}<br>
-                                    <b>Match Type:</b> {r['match_type']}<br>
-                                    <b>Score:</b> {r['score']}%<br>
-                                    {"<b>Total Synonyms:</b> " + str(r['total_synonyms_matched']) + "<br>" if r.get("total_synonyms_matched") else ""}
-                                    {"<b>Weight Tag:</b> " + r['weight_tag_title'] + "<br>" if r.get("weight_tag_title") else ""}
-                                </div>
-                        """, unsafe_allow_html=True)
+                         # Insert into the View More Synonyms section
+                        html_block += f"""
+                           <details>
+                               <summary style='cursor:pointer;color:#4B0082;font-weight:600;'>View More Synonyms</summary>
+                               <div style='margin-top:10px; max-height:250px; overflow-y:auto; border:1px solid #ccc;
+                                           padding:10px; background-color:white; border-radius:8px;'>
+                                   <table style='width:100%; border-collapse: collapse;'>
+                                       <thead style='background-color:#f2f2f2;'>
+                                           <tr>
+                                               <th style='padding:8px; border:1px solid #ccc;'>#</th>
+                                               <th style='padding:8px; border:1px solid #ccc;'>Synonym</th>
+                                               <th style='padding:8px; border:1px solid #ccc;'>Link</th>
+                                           </tr>
+                                       </thead>
+                                       <tbody>
+                                           {synonym_rows}
+                                       </tbody>
+                                   </table>
+                               </div>
+                           </details>
+                        """                  
+                    #Registry block ONLY runs if sources exist
+                        sources = r["synonym_sources"]
+                        if isinstance(sources, list) and sources:
 
-        except Exception as e:
-            st.error(f"Backend error: {e}")
+                            def map_registry(link: str, substance_name: str):
+                               if "pubchem.ncbi.nlm.nih.gov" in link:
+                                   encoded_name = urllib.parse.quote(substance_name)
+                                   return "PubChem - National Library of Medicine", f"https://pubchem.ncbi.nlm.nih.gov/#query={encoded_name}"
+                               elif "deadiversion.usdoj.gov" in link:
+                                   return "Controlled Substances by CSA Schedule (CSA List)","https://www.dea.gov/drug-information/csa "
+                               elif "govinfo.gov" in link and "2023-23478.pdf" in link:
+                                   return "DEA Special Surveillance List (DEA_SSL)","https://www.dea.gov/drug-information/drug-scheduling"
+                               elif "selectcommitteeontheccp.house.gov" in link:
+                                   return "U.S. House Select Committee on the Chinese Communist Party (CCP)","https://selectcommitteeontheccp.house.gov/"
+                               else:
+                                   return "Unknown Source",link
+                           
+                        
+                        
+                            registry_rows = "".join([
+                                f"<tr><td style='padding:8px; border:1px solid #ccc;'>{i+1}</td>"
+                                f"<td style='padding:8px; border:1px solid #ccc;'>{map_registry(link, r['substance_name'])[0]}</td>"
+                                f"<td style='padding:8px; border:1px solid #ccc;'>"
+                                f"<a href='{map_registry(link, r['substance_name'])[1]}' target='_blank'>{map_registry(link, r['substance_name'])[1]}</a>"
+                                f"</td>"
+                                f"</tr>"for i, link in enumerate(sources)
+                            ])
+ 
 
+                            html_block += (
+                                "<details>"
+                                "<summary style='cursor:pointer; color:#4B0082; font-weight:600;'>View Registry Links</summary>"
+                                "<div style='margin-top:10px; max-height:250px; overflow-y:auto; border:1px solid #ccc;"
+                                "padding:10px; background-color:white; border-radius:8px;'>"
+                                "<table style='width:100%; border-collapse: collapse;'>"
+                                "<thead style='background-color:#f2f2f2;'>"
+                                "<tr>"
+                                "<th style='padding:8px; border:1px solid #ccc;'>#</th>"
+                                "<th style='padding:8px; border:1px solid #ccc;'>Source</th>"
+                                "<th style='padding:8px; border:1px solid #ccc;'>Registry Link</th>"
+                                "</tr>"
+                                "</thead>"
+                                "<tbody>"
+                                f"{registry_rows}"
+                                "</tbody>"
+                                "</table>"
+                                "</div>"
+                                "</details>"
+                            )
+                        else:
+                            html_block += "<i style='color:gray;'>No registry sources available.</i><br>"
 
+                        html_block += "</div>" 
+                        st.markdown(html_block, unsafe_allow_html=True)
+
+                        # Select button (below the card, still inside the same container)
+                        #if multiple:
+                            #if st.button(f"Select this result", key=f"select_btn_{idx}"):
+                               # st.session_state.selected_card_index = idx
+                                #st.rerun()
+
+    except Exception as e:
+        st.error(f"Backend error: {e}")
 
 # ---------------- Synonyms ------------------
 elif st.session_state.page == "synonyms":
@@ -290,7 +464,7 @@ elif st.session_state.page == "synonyms":
 
     if find_clicked and term:
         try:
-            resp = requests.get("https://fentanyl-api.onrender.com/synonyms_lookup", params={"term": term})
+            resp = requests.get("http://localhost:8006/synonyms_lookup", params={"term": term})
             if resp.status_code == 200:
                 results = resp.json()
                 if results:
@@ -325,7 +499,7 @@ elif st.session_state.page == "synonyms":
             st.error(f"Request failed: {e}")   
     
     try:
-        response = requests.get("https://fentanyl-api.onrender.com/synonyms")
+        response = requests.get("http://localhost:8006/synonyms")
         data = response.json()
     except Exception as e:
         st.error(f"Failed to fetch synonym insights: {e}")
@@ -512,8 +686,8 @@ elif st.session_state.page == "weight":
 
 
 #------------- sources -------------------------------
-elif st.session_state.page == "sources":
-    st.markdown("<h2 style='color: black; text-align: center;'>Data Sources</h2>", unsafe_allow_html=True)
+elif st.session_state.page == "Registry Sources":
+    st.markdown("<h2 style='color: black; text-align: center;'>Registry Sources</h2>", unsafe_allow_html=True)
 
     st.markdown("""
         <style>
@@ -582,3 +756,20 @@ elif st.session_state.page == "add_delete":
       """, unsafe_allow_html=True)
     
     #margin-bottom:20px;
+
+#------------------ data log ---------------------
+elif st.session_state.page == "data_log":
+    try:
+        view_df = pd.read_excel(data_log, sheet_name="Data Log")
+        with st.container():
+            st.dataframe(view_df, use_container_width=True)
+    except Exception as e:
+        st.warning(f"Failed to load Registry Excel: {e}")
+
+# --------- process log -------------------
+elif st.session_state.page == "process_log":
+    try:
+        view_df = pd.read_excel(data_log, sheet_name="Process Log")
+        st.dataframe(view_df)
+    except Exception as e:
+        st.warning(f"❌ Failed to load Process Log: {e}")
