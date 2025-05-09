@@ -1,4 +1,3 @@
-#new backend.py
 from fastapi import FastAPI, Query
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
@@ -8,9 +7,10 @@ from fuzzywuzzy import process
 import traceback
 import numpy as np
 from typing import List, Optional
-
+ 
+ 
 app = FastAPI()
-
+ 
 # CORS
 app.add_middleware(
     CORSMiddleware,
@@ -19,15 +19,15 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
-
+ 
 # Load Excel
 file_path = "https://www.dropbox.com/scl/fi/gf21i2qf3ffioy958448x/Data-Model-Tables.xlsx?rlkey=4ovpu5v0l7ri0zp3bi5wx3u0t&st=6xle6bd9&dl=1"
-
+#file_path = 'Data Model Tables.xlsx'
 ref_df = pd.read_excel(file_path, sheet_name="Substance_Reference")
 source_df = pd.read_excel(file_path, sheet_name="Substance_Sourcing")
 weight_df = pd.read_excel(file_path, sheet_name="Weighting_Tag").apply(lambda x: x.astype(str).str.strip())
 substance_type_df = pd.read_excel(file_path, sheet_name="Substance_Type").apply(lambda x: x.astype(str).str.strip())
-
+ 
 # Clean and standardize IDs
 ref_df["Substance_Reference_ID"] = ref_df["Substance_Reference_ID"].astype(str).str.strip().str.replace('.0', '', regex=False)
 ref_df["Substance_ID"] = ref_df["Substance_ID"].astype(str).str.strip()
@@ -35,19 +35,19 @@ ref_df["Substance_Name"] = ref_df["Substance_Name"].astype(str).fillna("Not Avai
 ref_df["Substance_Description"] = ref_df["Substance_Description"].astype(str).fillna("Not Available").str.strip()
 ref_df["Substance_Weight"] = ref_df.get("Substance_Weight", "Not Available").astype(str).fillna("Not Available").str.strip()
 ref_df["(FK) Weighting_Tag_ID"] = ref_df["(FK) Weighting_Tag_ID"].astype(str).str.strip()
-
+ 
 source_df["(FK) Substance_ID"] = source_df["(FK) Substance_ID"].astype(str).str.strip().str.replace('.0', '', regex=False)
 source_df["Substance_Sourcing_Local_Name"] = source_df["Substance_Sourcing_Local_Name"].astype(str).str.strip()
-
+ 
 weight_df["Weighting_Tag_ID"] = weight_df["Weighting_Tag_ID"].astype(str).str.strip()
-
+ 
 ref_with_weight_title_df = ref_df.merge(
     weight_df[["Weighting_Tag_ID", "Weighting_Tag_Title"]],
     left_on="(FK) Weighting_Tag_ID",
     right_on="Weighting_Tag_ID",
     how="left"
 ).fillna("Not Available")
-
+ 
 ref_df = ref_with_weight_title_df
 combined_df = pd.merge(
     source_df,
@@ -56,7 +56,7 @@ combined_df = pd.merge(
     right_on="Substance_Reference_ID",
     how="left"
 ).fillna("Not Available")
-
+ 
 class MatchResult(BaseModel):
     substance_reference_id: str
     substance_id: str
@@ -68,14 +68,17 @@ class MatchResult(BaseModel):
     weight: str
     total_synonyms_matched: Optional[int] = None
     weight_tag_title: Optional[str] = None
-
-
+    synonym_source: Optional[List[dict]] = None  # Keep this for backward compatibility
+    synonym_sources: Optional[List[str]] = None  # <-- NEW
+ 
+ 
+ 
 @app.get("/match", response_model=List[MatchResult])
 def match_substance(query: str = Query(...)):
     query_lower = query.strip().lower()
     results = []
     seen_ref_ids = set()
-
+ 
     def get_synonym_count(sub_ref_id: str) -> int:
         try:
             sub_ref_id = str(sub_ref_id).strip()
@@ -85,7 +88,26 @@ def match_substance(query: str = Query(...)):
             return int(filtered["Substance_Sourcing_Local_Name"].nunique())
         except Exception:
             return 0
-
+        
+    #def get_first_synonym_source(sub_ref_id: str) -> str:
+       # filtered = source_df[source_df["(FK) Substance_ID"].astype(str).str.strip() == sub_ref_id]
+       # source_values = filtered["Substance_Sourcing_Mapping_Reference"].dropna().unique()
+       # return source_values[0] if len(source_values) > 0 else "Not Available"
+    
+    def get_all_synonym_sources(sub_ref_id: str) -> List[str]:
+        filtered = source_df[source_df["(FK) Substance_ID"].astype(str).str.strip() == sub_ref_id]
+        return filtered["Substance_Sourcing_Mapping_Reference"].dropna().unique().tolist()
+ 
+    def get_synonym_source_pairs(sub_ref_id: str) -> List[dict]:
+       filtered = source_df[source_df["(FK) Substance_ID"].astype(str).str.strip() == sub_ref_id]
+       return [
+            {
+                "synonym": row["Substance_Sourcing_Local_Name"],
+                "source": row.get("Substance_Sourcing_Mapping_Reference", "Not Available")
+            }
+            for _, row in filtered.iterrows()
+        ]
+ 
     # --------- Exact CAS match ----------
     for _, row in ref_df[ref_df["Substance_ID"].str.lower() == query_lower].iterrows():
         if row["Substance_Reference_ID"] not in seen_ref_ids:
@@ -99,10 +121,12 @@ def match_substance(query: str = Query(...)):
                 description=row["Substance_Description"],
                 weight=row["Substance_Weight"],
                 total_synonyms_matched=get_synonym_count(row["Substance_Reference_ID"]),
-                weight_tag_title=row["Weighting_Tag_Title"]
+                weight_tag_title=row["Weighting_Tag_Title"],
+                synonym_source=get_synonym_source_pairs(row["Substance_Reference_ID"]),
+                synonym_sources=get_all_synonym_sources(row["Substance_Reference_ID"])
             ))
             seen_ref_ids.add(row["Substance_Reference_ID"])
-
+ 
     # --------- Exact Substance Name match ----------
     for _, row in ref_df[ref_df["Substance_Name"].str.lower() == query_lower].iterrows():
         if row["Substance_Reference_ID"] not in seen_ref_ids:
@@ -116,10 +140,12 @@ def match_substance(query: str = Query(...)):
                 description=row["Substance_Description"],
                 weight=row["Substance_Weight"],
                 total_synonyms_matched=get_synonym_count(row["Substance_Reference_ID"]),
-                weight_tag_title=row["Weighting_Tag_Title"]
+                weight_tag_title=row["Weighting_Tag_Title"],
+                synonym_source=get_synonym_source_pairs(row["Substance_Reference_ID"]),
+                synonym_sources=get_all_synonym_sources(row["Substance_Reference_ID"])
             ))
             seen_ref_ids.add(row["Substance_Reference_ID"])
-
+ 
     # --------- Exact Synonym match ----------
     synonym_matches = combined_df[combined_df["Substance_Sourcing_Local_Name"].str.lower() == query_lower]
     for _, row in synonym_matches.head(3).iterrows():
@@ -134,17 +160,19 @@ def match_substance(query: str = Query(...)):
                 description=row["Substance_Description"],
                 weight=row["Substance_Weight"],
                 total_synonyms_matched=get_synonym_count(row["Substance_Reference_ID"]),
-                weight_tag_title=row["Weighting_Tag_Title"]
+                weight_tag_title=row["Weighting_Tag_Title"],
+                synonym_source=get_synonym_source_pairs(row["Substance_Reference_ID"]),
+                synonym_sources=get_all_synonym_sources(row["Substance_Reference_ID"]),
             ))
             seen_ref_ids.add(row["Substance_Reference_ID"])
-
+ 
     # --------- Fuzzy Matching with score-first, then type-priority ---------
     if not results:
         substance_name_pool = ref_df["Substance_Name"].dropna().unique()
         synonym_pool = combined_df["Substance_Sourcing_Local_Name"].dropna().unique()
-
+ 
         fuzzy_candidates = []
-
+ 
         # Fuzzy match on Substance Name
         fuzzy_name_matches = process.extract(query, substance_name_pool, limit=10)
         for match_text, score in fuzzy_name_matches:
@@ -162,7 +190,7 @@ def match_substance(query: str = Query(...)):
                     "weight": r["Substance_Weight"],
                     "tag_title": r["Weighting_Tag_Title"]
                 })
-
+ 
         # Fuzzy match on Synonym
         fuzzy_synonym_matches = process.extract(query, synonym_pool, limit=10)
         for match_text, score in fuzzy_synonym_matches:
@@ -181,18 +209,18 @@ def match_substance(query: str = Query(...)):
                         "weight": r["Substance_Weight"],
                         "tag_title": r["Weighting_Tag_Title"]
                     })
-
+ 
         # Sort by score descending, then by type priority
         type_priority = {
             "fuzzy-substance name": 1,
             "fuzzy-synonym": 2
         }
-
+ 
         fuzzy_sorted = sorted(
             fuzzy_candidates,
             key=lambda x: (-x["score"], type_priority.get(x["type"], 99))
         )
-
+ 
         fuzzy_results_added = 0
         for item in fuzzy_sorted:
             if item["sub_ref_id"] in seen_ref_ids:
@@ -207,17 +235,20 @@ def match_substance(query: str = Query(...)):
                 description=item["desc"],
                 weight=item["weight"],
                 total_synonyms_matched=get_synonym_count(item["sub_ref_id"]),
-                weight_tag_title=item["tag_title"]
+                weight_tag_title=item["tag_title"],
+                synonym_source=get_synonym_source_pairs(item["sub_ref_id"]) ,
+                synonym_sources=get_all_synonym_sources(item["sub_ref_id"])
             ))
             seen_ref_ids.add(item["sub_ref_id"])
             fuzzy_results_added += 1
             if fuzzy_results_added >= 3:
                 break
-
+    # -------------------- source ----------------------
+    
     # --------- Final priority-based sorting ----------
     if results:
         return results
-
+ 
     # --------- No Match Fallback ----------
     return [MatchResult(
         substance_reference_id="NOT FOUND",
@@ -229,35 +260,38 @@ def match_substance(query: str = Query(...)):
         description="Not Available",
         weight="Not Available",
         total_synonyms_matched=0,
-        weight_tag_title="Not Available"
+        weight_tag_title="Not Available",
+        synonym_source="Not Available",
+        synonym_sources="Not Available"
+        
     )]
 #------------------Synonyms------------------------------
 @app.get("/synonyms_lookup")
 def get_related_synonyms(term: str = Query(...)):
     term = term.strip().lower()
-
+ 
     matched_ref_ids = ref_df[ref_df["Substance_Name"].str.lower() == term]["Substance_Reference_ID"].tolist()
     synonym_matched_ids = combined_df[combined_df["Substance_Sourcing_Local_Name"].str.lower() == term]["Substance_Reference_ID"].tolist()
-
+ 
     all_ids = list(set(matched_ref_ids + synonym_matched_ids))
-
+ 
     if not all_ids:
         return {"found": False, "term": term, "synonyms": []}
-
+ 
     related = combined_df[combined_df["Substance_Reference_ID"].isin(all_ids)]
-
+ 
     grouped = related.groupby("Substance_Reference_ID").agg({
         "Substance_Sourcing_Local_Name": lambda x: sorted(set(x.dropna())),
         "Substance_ID": "first",
         "Substance_Name": "first"
     }).reset_index()
-
+ 
     return grouped.to_dict(orient="records")
 @app.get("/synonyms")
 def get_synonym_insights():
     
     try:
-
+ 
         # Unique synonym → # of unique substances it maps to
         synonym_counts = (
             source_df.groupby("Substance_Sourcing_Local_Name")["(FK) Substance_ID"]
@@ -393,6 +427,3 @@ def get_synonym_insights():
         print("❌ Error in /synonyms:", e)
         traceback.print_exc()
         return JSONResponse(status_code=500, content={"error": str(e)})
-    
- 
- 
