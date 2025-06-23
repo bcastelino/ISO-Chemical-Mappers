@@ -1,4 +1,4 @@
-# 💊 Illicit Synthetic Opioids (ISO) Chemical ID Mappers
+# 💊 Disrupting Fentanyl Supply Chains ISO Chemical ID Mappers
 
 ## 📘 Project Overview
 The **Chemical ID Mappers** team is part of the broader **Illicit Synthetic Opioids (ISO) Disruption Framework**, focused on mapping chemical identifiers across different substance registries to aid in tracking illicit fentanyl production and distribution.
